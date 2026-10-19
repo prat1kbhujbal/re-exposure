@@ -14,7 +14,7 @@ and [tools/README.md](../tools/README.md).
 | `src/license_hardened.c` | Source-level layers 1+2: encrypted secrets, decrypt-at-use, wipe-after |
 | `src/license_flattened.c` | Manually control-flow-flattened, to exercise the readability axis |
 | `src/gen_secrets.py` | Build-time secret encryptor; emits `build/secrets_enc.h` |
-| `secrets/secrets.txt` | Plaintext secrets kept OUT of the shipped binary |
+| `examples/demo_strings.txt` | Demo strings for the worked example (fake; encrypted into the build) |
 | `analyst-view.sh` | The "first look": symbols, strings, disasm of `check_license` |
 | `Makefile` | `all`, `scan`, `reharden`, `m3-encrypt`, `readability-demo`, `agent-demo`, `pe-demo` |
 

@@ -13,3 +13,8 @@ tools/pe/stub/
 *.hardened
 *.rh
 *.rh.exe
+
+# never commit real secret inputs (the lab ships only examples/)
+secrets/
+secrets.txt
+*.secret

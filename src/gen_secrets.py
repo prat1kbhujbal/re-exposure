@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Build-time secret encryptor.
 
-Reads secrets/secrets.txt (one secret per line) and emits a C header with
+Reads a plaintext strings file (one per line) and emits a C header with
 each secret stored as XOR-obfuscated bytes under a rolling key. The plaintext
 never lands in the shipped binary's .rodata, so `strings` and xref search
 find nothing. XOR is intentionally weak crypto -- the point of THIS layer is
 to kill signature/landmark search, not to resist a memory dump. (That is what
 the later runtime layers are for.)
 
-Usage: gen_secrets.py <secrets.txt> <out_header.h>
+Usage: gen_secrets.py <strings.txt> <out_header.h>
 """
 import sys
 

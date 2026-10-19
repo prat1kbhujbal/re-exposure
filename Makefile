@@ -18,7 +18,7 @@ $(B)/baseline.strip: $(B)/baseline
 	cp $< $@ && strip --strip-all $@
 
 # --- hardened: layer 2 (encrypted secrets), symbols kept --------------
-$(B)/secrets_enc.h: secrets/secrets.txt src/gen_secrets.py
+$(B)/secrets_enc.h: examples/demo_strings.txt src/gen_secrets.py
 	$(PY) src/gen_secrets.py $< $@
 
 $(B)/hardened: src/license_hardened.c $(B)/secrets_enc.h
