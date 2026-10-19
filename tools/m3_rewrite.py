@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """m3_rewrite -- reference-correct binary rewriting via GTIRB (M3 foundation).
 
-Pipeline (proven working on this host):
+Pipeline:
   ddisasm (Docker)         binary   -> GTIRB           [reference-accurate IR]
   gtirb-pprinter (Docker)  GTIRB    -> assembly        [references are symbolic]
   [--encrypt-strings]      assembly -> assembly        [per-use string encrypt]
@@ -18,8 +18,8 @@ ELF surgery can't guarantee. encrypt_strings_asm() uses this for per-use string
 encryption; plaintext is only ever transiently in a per-site buffer, not resident
 for the whole process lifetime (the M1/M2 limitation). The behavior-preservation
 --verify gate fails closed: on any divergence it refuses rather than ship a
-broken binary (demonstrated refusing /usr/bin/true, which has string patterns the
-MVP selector doesn't yet handle).
+broken binary (for example /usr/bin/true, whose string patterns the selector
+does not yet handle).
 
 Usage: m3_rewrite.py <binary> -o <out> [--encrypt-strings] [--verify "<args>"]...
 

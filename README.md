@@ -274,5 +274,3 @@ use REN to protect their own software. Contact the author to arrange one.
 - [tools/pe/README.md](tools/pe/README.md): Windows PE support and its blocker.
 - [docs/rodata-string-rewriting-spec.md](docs/rodata-string-rewriting-spec.md):
   string-rewriting design and milestones.
-
-> `REN` (Reverse Engineer Nothing) is a working name; the repo directory is `ren`.

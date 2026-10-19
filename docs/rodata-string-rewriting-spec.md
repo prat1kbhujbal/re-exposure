@@ -27,7 +27,7 @@ Remaining: merged `.ascii`-continuation strings are skipped; the `.byte` scans
 assume single-value-per-line. M4 (PE/Mach-O) needs cross-compilers (none on this
 host).
 
-**M3 toolchain (resolved 2026-10-17):** `gtirb` Python lib via pip; `ddisasm`
+**M3 toolchain:** `gtirb` Python lib via pip; `ddisasm`
 and `gtirb-pprinter` via the **`grammatech/ddisasm` Docker image** (ddisasm
 1.9.5). The image's glibc is older than the host's, so in-container reassembly
 fails on versioned libc symbols; the working pipeline is **lift + emit assembly

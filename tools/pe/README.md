@@ -37,8 +37,8 @@ no `lld-link` + Windows SDK set up. `llvm-ml-14` is present but bridging MASM
 output to the mingw linker is substantial. So PE string encryption is the real
 M4 blocker; ELF (M1/M2/M3) is unaffected.
 
-Bridge attempt (2026-10-18), recorded so we don't repeat it: tried assembling
-gtirb-pprinter's PE MASM with `llvm-ml-14`. It parses the MASM directives
+Why the obvious bridge does not work: assembling gtirb-pprinter's PE MASM with
+`llvm-ml-14` was tried. It parses the MASM directives
 (`EXTERN`/`PROC`) but not gtirb's Microsoft-`ml64` dialect: `$L_x::` global
 labels fail, and after transforming those, `SEGMENT READ/WRITE 'DATA'` directives
 fail too - a cascade of dialect gaps. gtirb emits for MS `ml64`/`link.exe`
