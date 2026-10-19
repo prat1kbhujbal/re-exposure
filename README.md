@@ -11,6 +11,7 @@ the analyst reads, and prove behavior is unchanged. The inverse of
 ![status](https://img.shields.io/badge/status-research%20prototype-orange?style=flat-square)
 ![host](https://img.shields.io/badge/host-Linux%20x86--64-informational?style=flat-square)
 ![targets](https://img.shields.io/badge/targets-ELF%20%C2%B7%20PE%20(partial)-blue?style=flat-square)
+![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey?style=flat-square)
 
 </div>
 
@@ -255,6 +256,14 @@ REN protects software you own. It removes comprehension aids and raises
 analysis cost. It must not be used to misrepresent what code does to a security
 tool or to conceal malicious behavior. The measurement harness is kept honest
 and independent by design: it reports exposure and conceals nothing.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE). Free to read, run, and modify for any
+**noncommercial** purpose (evaluation, research, personal use, and by nonprofit
+or government organizations). **Commercial or production use requires a separate
+license** from the author; that is the intended path for companies that want to
+use REN to protect their own software. Contact the author to arrange one.
 
 ## Documentation
 
