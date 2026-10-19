@@ -1,0 +1,15 @@
+# compiled + generated artifacts (reproducible via `make`)
+build/
+__pycache__/
+*.pyc
+
+# PE build stub (generated from tools/pe/chkstk.s on first build)
+tools/pe/stub/
+
+# hardened / rewritten binary outputs
+*.m3
+*.m3enc
+*.enc
+*.hardened
+*.rh
+*.rh.exe
