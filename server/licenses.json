@@ -1,0 +1,7 @@
+{
+  "secret_key": "ACME-PRO-2026-XK7Q",
+  "tokens": {
+    "CUST-1042-ok": {"revoked": false, "name": "Acme Corp"},
+    "CUST-9000-rv": {"revoked": true, "name": "Revoked Customer"}
+  }
+}

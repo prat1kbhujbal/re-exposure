@@ -115,6 +115,15 @@ locked-demo: $(B)/locked_o0
 	@echo "== asset/key in the binary? =="; strings -n 5 $(B)/locked_o0 | \
 	  grep -E "UNLOCK-OK|ACME-PRO" || echo "  not present (ciphertext only)"
 
+# online tier: the key lives on a license server (server/license_server.py); the
+# client holds only an opaque token. Strongest tier here -- offline or revoked
+# yields nothing, and the key never persists in the client. online-demo starts
+# the server, runs valid/revoked/server-down clients, and stops it.
+$(B)/online_o0: src/license_online.c $(B)/locked.h
+	$(CC) -O0 -I$(B) -o $@ src/license_online.c -lcrypto
+online-demo: $(B)/online_o0
+	./scripts/online-demo.sh
+
 # M3: per-use string encryption via GTIRB (needs docker image grammatech/ddisasm)
 m3-encrypt: $(B)/demo_nopie
 	python3 tools/m3_rewrite.py $(B)/demo_nopie -o $(B)/demo_nopie.m3enc \

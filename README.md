@@ -243,6 +243,7 @@ not a score. The same program is built three ways, behavior identical:
 | encrypted | XOR string encryption | yes | step 3 (`run`: compare-spy) |
 | verifier | stores `SHA-256(key)`, key not in client | **no** | never |
 | locked | key-as-lock: asset is AES-256-GCM ciphertext | **no** | never |
+| online | server-issued key (stolen binary, server down) | **no** | never |
 
 This is the objection stated plainly and then tested. String encryption did not
 stop the 32b agent: it saw `strings` return nothing, ran the binary under the
@@ -257,9 +258,14 @@ gets nothing.
 The honest conclusion the toolkit states up front: **static obfuscation raises
 the attacker's step count by one or two; it does not stop an agent with a
 debugger. What stops it is not shipping the secret, so the toolkit's real output
-is a measurement plus the architecture that follows from it** (key-as-lock
-offline; server-side execution or server-issued keys online, which this repo
-scaffolds next). Reproduce with `make attack-demo` and `make locked-demo`.
+is a measurement plus the architecture that follows from it**: key-as-lock for
+offline binaries (`make locked-demo`), and a server-issued key for the online
+case (`make online-demo`), where the key lives on a license server
+(`server/license_server.py`) and the client holds only a token, so a stolen
+binary with the server down or its token revoked recovers nothing. The one tier
+beyond this, which removes even the authorized-user memory dump, is server-side
+execution (secret logic on the server, client gets only results). Reproduce with
+`make attack-demo`, `make locked-demo`, and `make online-demo`.
 
 ## 4. Usage
 
@@ -274,7 +280,7 @@ agent_attack.py <bin> --secret S [--max-steps N]     # iterating agent cost
 
 The repository's `make` targets (`scan`, `reharden`, `m3-encrypt`,
 `readability-demo`, `agent-demo`, `benchmark`, `attack-demo`, `locked-demo`,
-`pe-demo`) reproduce the results
+`online-demo`, `pe-demo`) reproduce the results
 above on the bundled worked example; see [docs/lab.md](docs/lab.md).
 
 ## 5. Implementation notes and limitations

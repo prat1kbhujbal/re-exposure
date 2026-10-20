@@ -272,6 +272,50 @@ Dependency: OpenSSL (`-lcrypto`).
 
 ---
 
+# server/license_server.py + src/license_online.c - server-issued key
+
+The strongest tier the repo builds. `license_locked` keeps the key out of the
+binary but a copy still reaches the client (the user types it). This goes
+further: **the client holds no key at all.** It authenticates to a license
+server with an opaque token, the server validates it and returns the key, and
+only then is the asset decrypted. The key lives on the server; the client ships
+a token plus ciphertext.
+
+- `server/license_server.py`: holds the key, serves `POST /key` for a valid,
+  non-revoked token, and logs every issue/deny. Config in `server/licenses.json`
+  (re-read per request, so revocation is immediate).
+- `src/license_online.c`: opens a socket to the server, presents its token, and
+  decrypts the asset with the returned key. Server down or token declined means
+  no key and no asset. `REN_TOKEN` / `REN_PORT` override the demo defaults.
+
+```bash
+make online-demo     # starts the server, runs valid/revoked/down clients, stops it
+```
+
+What this gives that offline protection cannot, shown by the demo:
+
+```
+valid token + server up     -> asset unlocks   (server logs the issue)
+revoked token               -> declined        (binary unchanged; server said no)
+server down                 -> declined        (no offline key to fall back on)
+client binary, statically   -> token + ciphertext only; the key is never in it
+```
+
+Under `agent_attack` with the server unreachable (a stolen binary), the asset is
+not recovered: there is no key in the file and none to fetch.
+
+**Honest boundary (unchanged and important).** While the server is up and the
+token is valid, running the client decrypts the asset into its own memory, so an
+authorized attacker can still dump it, and an extracted token works until it is
+revoked or bound. The wins are real but bounded: no offline cracking, immediate
+revocation, per-use visibility, and no key at rest in the client. The only tier
+that removes the authorized-user dump is server-side EXECUTION, where the secret
+logic runs on the server and the client receives only results, never the asset
+or the key. This demo also speaks plain HTTP to localhost; production needs TLS,
+a signed and device-bound token, and short-lived keys.
+
+---
+
 # tools/m3_rewrite - reference-correct rewriting via GTIRB (M3 foundation)
 
 Round-trips a binary through GrammaTech GTIRB, reference-correctly:
