@@ -23,9 +23,12 @@ make scan                                    # score all lab variants
 
 The `--deep` and `--agent` axes are opt-in (slow; need Ghidra / a local Ollama
 model) and skip cleanly with a `note` if their tooling is absent, so the fast
-static scan always works. Capstone: on clean vs flattened `check_license` the
-static axes don't move (same symbols/strings/metadata) - only the **agent axis
-moves, 66.7 -> 0.0** - which is the whole point: it sees what they can't.
+static scan always works. Note on the agent axis: with the default Ghidra-
+pseudocode source it measures decompiler-output readability to a one-shot LLM,
+not resistance to an agent reading disassembly. A flattened function scores 0
+there only because Ghidra failed to structure it; from raw asm a 32b model
+recovers the mechanism (see the main README, section 3.4). Treat the gap between
+pseudocode and `--disasm` as the real signal, not the pseudocode number alone.
 
 Exposure is `0` (hardened) .. `100` (wide open); grade A - F.
 
@@ -92,8 +95,10 @@ Heavier axes plug in behind the same `fn(binary) -> AxisResult` interface:
   scores whether it recovered the mechanism + the literal secret. Clean code →
   accurate summary → HIGH exposure; obfuscated → model recovers nothing → LOW.
   Runs a **local** model via Ollama, so the analyzed code never leaves the
-  machine (a product selling point). Validated: clean `check_license` 66.7 (model
-  quotes the key) vs flattened 0.0. `make agent-demo`.
+  machine (a product selling point). On a 32b model, clean `check_license`
+  scores 75 (the model quotes the key); flattened scores 0 from Ghidra
+  pseudocode but 25 from raw disassembly (`--disasm`), because the stub Ghidra
+  produced hides what the asm still shows. `make agent-demo`.
 
 ### Ghidra setup for `--deep`
 
@@ -125,7 +130,9 @@ build-gated; the axis itself is engine-agnostic.
       `llvm-objdump` for the section-based axes).
 - [x] **`--gate <max>`** exit-nonzero CI mode so releases fail if exposure regresses.
 - [x] **Ghidra headless backend** (`--deep` decompiler-readability axis).
-- [ ] **Agent backend** (summary-accuracy axis) - the licensed-product core.
+- [x] **Agent backend** (`--agent` summary-accuracy axis, pseudocode + `--disasm`).
+- [ ] **Model the full agentic attack** (iterate over raw asm + tooling), since
+      the pseudocode source only measures decompiler readability.
 - [ ] **Calibration harness**: correlate axis scores with real agent accuracy to
       set weights empirically instead of by hand.
 - [ ] Real PE/Mach-O test fixtures (needs a cross-compiler; none on the dev box).

@@ -133,10 +133,15 @@ strip      36.1 (C)   # reharden: symbols/debug/notes gone
 
 ---
 
-# tools/agent_summary - LLM summary-accuracy axis (licensed-product core)
+# tools/agent_summary - LLM summary-accuracy axis
 
-Measures resistance to AI/agent RE directly: decompile a function (Ghidra),
-ask an LLM to explain it, score whether it recovered the mechanism + secret.
+Asks an LLM to explain a function and scores whether it recovered the mechanism
+and secret. The `source` matters and the tool defaults are easy to misread:
+`pseudocode` (Ghidra output) measures decompiler-output readability to a
+one-shot LLM; `--disasm` (raw objdump) models the agentic attacker who reads asm
+directly. Obfuscation that breaks the decompiler scores low under `pseudocode`
+but is partly recovered under `--disasm`, so report both, not the pseudocode
+number alone.
 
 - **Local model via Ollama** (`REEXPOSE_MODEL`, default `qwen2.5-coder:1.5b`,
   `OLLAMA_URL` default `http://localhost:11434`) - the analyzed code never
@@ -147,18 +152,23 @@ ask an LLM to explain it, score whether it recovered the mechanism + secret.
   not a concept, so clean vs obfuscated separate on recovered logic, not naming.
 
 ```bash
-python3 tools/agent_summary.py <bin> --func <name> --secret "<literal>" [--json]
+python3 tools/agent_summary.py <bin> --func <name> --secret "<literal>" [--disasm] [--json]
 make agent-demo        # clean vs flattened check_license
 ```
 
-Validated (qwen2.5-coder:1.5b):
+Measured on a 32b model, same `check_license`:
 
 ```
-clean       66.7   model: "...matches the constant string ACME-PRO-2026-XK7Q..."
-flattened    0.0   model: "...calls a function pointed to by a switch..." (no logic)
+                       clean   flattened
+pseudocode source       75.0     0.0     (flattened: Ghidra gave the model a stub)
+--disasm source         41.7    25.0     (model reconstructs the compare from asm)
 ```
 
-A bigger local model raises fidelity; the axis is model-agnostic.
+The flattened 0 under `pseudocode` reflects the decompiler failing, not the
+model. From raw asm the model recovers the mechanism, so control-flow flattening
+does not stop an agent that reads disassembly. A bigger model raises fidelity on
+clean code; it does not close the pseudocode-vs-disasm gap, since that gap is
+about what the decompiler produced.
 
 ---
 

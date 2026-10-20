@@ -194,22 +194,33 @@ and the incidental printable runs in XOR ciphertext. The removal of
 *application* landmarks is real; the current aggregate score under-credits it.
 Refining the strings axis to weight application strings is future work.
 
-### 3.4 The AI-specific axes
+### 3.4 The AI-specific axes, and an important correction
 
-These are the clearest demonstrations of the thesis, measured on the same
-`check_license` function in clean and control-flow-flattened form:
+The agent axis measures whether an LLM, given a function, can explain it. On the
+same `check_license` in clean vs control-flow-flattened form:
 
-| Axis | clean | flattened |
+| Axis / source | clean | flattened |
 | --- | --- | --- |
 | decompiler readability (Ghidra) | 100.0 | 0.0 |
-| LLM summary-accuracy (local `qwen2.5-coder:1.5b`) | 66.7 | 0.0 |
+| LLM summary (Ghidra pseudocode, 32b) | 75.0 | 0.0 |
+| LLM summary (**raw disassembly**, 32b) | 41.7 | **25.0** |
 
-On the clean form the model recovers the mechanism and quotes the embedded
-secret; on the flattened form Ghidra fails to recover control flow and the model
-can say nothing specific. Critically, on a clean-vs-flattened comparison the five
-static axes do not move (same symbols, strings, metadata), and only the agent
-axis does. This is the signal classic protection metrics miss and the reason the
-agent axis is the central contribution.
+The first two rows look like a dramatic result: obfuscation drops the agent to
+zero. **That is misleading, and the raw-disassembly row is why.** The "0" on the
+flattened function is an artifact of feeding the model Ghidra's output: Ghidra
+could not reconstruct the flattened control flow and handed the model a stub, so
+the model had nothing. When you instead give the model the raw disassembly, as a
+real agentic attacker would, a 32b model **reconstructs the mechanism** (a
+char-by-char comparison against a stored string) and the flattened score goes
+from 0 back up to 25. Control-flow flattening does not stop an agent that reads
+the asm.
+
+So the honest, narrower claim is: the agent axis with the `pseudocode` source
+measures **decompiler-output readability to a one-shot LLM**, not resistance to
+an agentic attacker. The gap between the pseudocode and disassembly rows is the
+real signal: obfuscation that breaks the decompiler raises the bar for the many
+analysts and tools that rely on it, but not for an agent reading disassembly. Use
+`agent_summary.py --disasm` to measure the stronger attacker.
 
 ## 4. Usage
 

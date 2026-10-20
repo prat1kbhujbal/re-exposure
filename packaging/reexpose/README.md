@@ -40,9 +40,10 @@ Two optional axes measure what the static ones cannot:
 
 - `--deep`: Ghidra decompiler readability.
 - `--agent <func>`: ask a local LLM to explain a function and score how much it
-  recovered. This is the axis that directly tracks resistance to AI reverse
-  engineering (obfuscate a function and it collapses while the static axes do
-  not move).
+  recovered. With the default Ghidra-pseudocode source this measures
+  decompiler-output readability to a one-shot LLM; with raw disassembly it
+  approximates an agentic attacker. The two differ on obfuscated code, and that
+  gap is the useful signal, not the pseudocode number alone.
 
 These, plus the hardening tools that reduce the score (metadata denial and
 reference-correct string encryption), are part of the full REN toolkit.
