@@ -219,18 +219,56 @@ build               protection                    cracked?  key readable at
 clean_o0            none (plaintext in .rodata)    yes       step 1  (strings)
 enc_o0              XOR string encryption          yes       step 3  (run: spy)
 verifier_o0         key not in client (SHA-256)    no        never
+locked_o0           key-as-lock (AES-256-GCM)      no        never
 ```
 
 The point: string encryption moved recovery from step 1 to step 3, it did not
 prevent it; the agent saw `strings` fail, ran the binary under the compare-spy,
-and read the decrypted key off the `strcmp`. Only `verifier_o0`, which ships
-`SHA-256(key)` instead of the key (`src/license_verifier.c`), is not cracked:
-there is no plaintext key anywhere in the client to read, statically or
-dynamically, so the agent degrades to brute force. The honest lesson is that
-static obfuscation raises the step count by one or two, and the thing that
-actually holds is keeping the secret off the client.
+and read the decrypted key off the `strcmp`. The two builds it could not crack
+both keep the secret off the client: `verifier_o0` ships `SHA-256(key)` instead
+of the key (`src/license_verifier.c`), and `locked_o0` ships the asset as
+AES-256-GCM ciphertext that only the key decrypts (`src/license_locked.c`, see
+below). The honest lesson is that static obfuscation raises the step count by
+one or two, and the thing that actually holds is not shipping the secret.
 
 `cmpspy.c` is built to `build/cmpspy.so` (the harness compiles it on demand).
+
+---
+
+# tools/seal + src/license_locked - key-as-lock (the protection that holds)
+
+The cost curve above shows obfuscation only delays an agent. This is the model
+that does not: the license key is a **lock, not a gate**. Instead of
+`if (valid) unlock()` (one branch to patch, and the compared key is in memory),
+the protected asset ships as ciphertext and the key is what decrypts it. There
+is no success branch to bypass, and no plaintext and no key in the client to
+read.
+
+- `tools/seal.c` (build time): takes the asset and the developer's license key,
+  derives an AES key with PBKDF2-HMAC-SHA256, encrypts with AES-256-GCM (real
+  OpenSSL, not a hand-rolled cipher), and emits `build/locked.h` with the salt,
+  IV, tag and ciphertext. The license key is a build input; it is NOT in the
+  header or the binary.
+- `src/license_locked.c` (runtime): re-derives the key from the key the *user*
+  supplies and AES-256-GCM-decrypts the asset. A wrong key fails the GCM auth
+  tag, so no plaintext is ever produced.
+
+```bash
+make locked-demo     # right key prints the asset; wrong key gets nothing
+python3 tools/agent_attack.py build/locked_o0 --secret "UNLOCK-OK-7f3a9c21"
+```
+
+Measured: under `agent_attack` the 32b never recovers the asset (the marker
+never appears via `strings`, `disasm`, or `run`); only ciphertext is in the
+file, so the agent falls back to guessing keys and gets nothing.
+
+**Honest boundary.** This stops an attacker *without* a valid key (the agent, an
+unlicensed user). A user *with* a valid key decrypts the asset into their own
+memory and can dump it from there; defeating extraction by an authorized user
+needs server-side execution or per-user keys (the online layer that derives or
+fetches the key instead of taking it from argv). Brute force is bounded by key
+entropy; PBKDF2 raises the per-guess cost but a guessable key is still guessable.
+Dependency: OpenSSL (`-lcrypto`).
 
 ---
 

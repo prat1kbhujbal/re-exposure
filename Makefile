@@ -99,6 +99,22 @@ attack-demo: $(B)/clean_o0 $(B)/enc_o0 $(B)/verifier_o0 $(B)/cmpspy.so
 	  python3 tools/agent_attack.py $(B)/$$b --secret "ACME-PRO-2026-XK7Q"; \
 	done
 
+# key-as-lock: the license key decrypts the protected asset (AES-256-GCM via
+# OpenSSL), it does not gate a branch. Real protection against an attacker
+# without the key -- there is no success branch to patch and no plaintext to
+# read. The license key is a BUILD input to seal; it is not stored in the binary.
+$(B)/seal: tools/seal.c
+	$(CC) -O2 -o $@ $< -lcrypto
+$(B)/locked.h: $(B)/seal examples/premium_asset.txt
+	./$(B)/seal examples/premium_asset.txt "ACME-PRO-2026-XK7Q" > $@
+$(B)/locked_o0: src/license_locked.c $(B)/locked.h
+	$(CC) -O0 -I$(B) -o $@ src/license_locked.c -lcrypto
+locked-demo: $(B)/locked_o0
+	@echo "== right key: asset unlocks =="; ./$(B)/locked_o0 "ACME-PRO-2026-XK7Q"
+	@echo "== wrong key: nothing =="; ./$(B)/locked_o0 WRONG || true
+	@echo "== asset/key in the binary? =="; strings -n 5 $(B)/locked_o0 | \
+	  grep -E "UNLOCK-OK|ACME-PRO" || echo "  not present (ciphertext only)"
+
 # M3: per-use string encryption via GTIRB (needs docker image grammatech/ddisasm)
 m3-encrypt: $(B)/demo_nopie
 	python3 tools/m3_rewrite.py $(B)/demo_nopie -o $(B)/demo_nopie.m3enc \

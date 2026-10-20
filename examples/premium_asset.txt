@@ -1,0 +1,8 @@
+PREMIUM-ASSET v3 (stands in for the thing worth stealing: proprietary model
+weights, a pricing algorithm, licensed content, a game's late levels).
+
+pricing_curve = { base: 0.4213, elastic: 1.87, ceiling: 9.5, decay: 0.031 }
+unlock_token  = UNLOCK-OK-7f3a9c21
+
+This text only exists in plaintext after the correct license key decrypts it.
+It is never stored in the binary and never reconstructed by a wrong key.

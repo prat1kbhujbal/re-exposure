@@ -237,22 +237,29 @@ target under an LD_PRELOAD comparison-spy), and `answer`, and it chooses one per
 turn until it recovers the key or gives up. The result is a *cost to recover*,
 not a score. The same program is built three ways, behavior identical:
 
-| build | protection | cracked? | key readable at |
+| build | protection | cracked? | key/asset readable at |
 | --- | --- | --- | --- |
 | plaintext | none | yes | step 1 (`strings`) |
 | encrypted | XOR string encryption | yes | step 3 (`run`: compare-spy) |
-| verifier | key not in client, stores SHA-256 | **no** | never |
+| verifier | stores `SHA-256(key)`, key not in client | **no** | never |
+| locked | key-as-lock: asset is AES-256-GCM ciphertext | **no** | never |
 
 This is the objection stated plainly and then tested. String encryption did not
 stop the 32b agent: it saw `strings` return nothing, ran the binary under the
 spy, and read the decrypted key straight off the `strcmp`, two steps later than
-the plaintext build. The only build it could not crack is the one that does not
-hold the key at all (`src/license_verifier.c` ships `SHA-256(key)`, so there is
-no plaintext to read statically or dynamically and the agent falls back to brute
-force). The honest conclusion the toolkit now states up front: **static
-obfuscation raises the attacker's step count by one or two; it does not stop an
-agent with a debugger. What stops it is keeping the secret off the client.**
-Reproduce with `make attack-demo`.
+the plaintext build. The two builds it could not crack are the two that do not
+hold the secret in the client: `verifier` ships `SHA-256(key)` (nothing to read,
+not invertible), and `locked` ships the protected asset as AES-256-GCM
+ciphertext that only the key decrypts, with no gate to patch (`tools/seal.c` +
+`src/license_locked.c`). Against both, the agent falls back to brute force and
+gets nothing.
+
+The honest conclusion the toolkit states up front: **static obfuscation raises
+the attacker's step count by one or two; it does not stop an agent with a
+debugger. What stops it is not shipping the secret, so the toolkit's real output
+is a measurement plus the architecture that follows from it** (key-as-lock
+offline; server-side execution or server-issued keys online, which this repo
+scaffolds next). Reproduce with `make attack-demo` and `make locked-demo`.
 
 ## 4. Usage
 
@@ -266,8 +273,8 @@ agent_attack.py <bin> --secret S [--max-steps N]     # iterating agent cost
 ```
 
 The repository's `make` targets (`scan`, `reharden`, `m3-encrypt`,
-`readability-demo`, `agent-demo`, `benchmark`, `attack-demo`, `pe-demo`)
-reproduce the results
+`readability-demo`, `agent-demo`, `benchmark`, `attack-demo`, `locked-demo`,
+`pe-demo`) reproduce the results
 above on the bundled worked example; see [docs/lab.md](docs/lab.md).
 
 ## 5. Implementation notes and limitations
