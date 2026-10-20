@@ -124,6 +124,14 @@ $(B)/online_o0: src/license_online.c $(B)/locked.h
 online-demo: $(B)/online_o0
 	./scripts/online-demo.sh
 
+# server-side execution tier (strongest): the secret pricing model runs on the
+# server (server/compute_server.py); the client sends inputs and shows only the
+# result. The IP (coefficients) never reaches the client, up or down.
+$(B)/compute_o0: src/compute_client.c
+	$(CC) -O0 -o $@ $<
+compute-demo: $(B)/compute_o0
+	./scripts/compute-demo.sh
+
 # M3: per-use string encryption via GTIRB (needs docker image grammatech/ddisasm)
 m3-encrypt: $(B)/demo_nopie
 	python3 tools/m3_rewrite.py $(B)/demo_nopie -o $(B)/demo_nopie.m3enc \

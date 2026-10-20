@@ -244,15 +244,17 @@ not a score. The same program is built three ways, behavior identical:
 | verifier | stores `SHA-256(key)`, key not in client | **no** | never |
 | locked | key-as-lock: asset is AES-256-GCM ciphertext | **no** | never |
 | online | server-issued key (stolen binary, server down) | **no** | never |
+| compute | server-side execution (logic never shipped) | **no** | never, even server live |
 
 This is the objection stated plainly and then tested. String encryption did not
 stop the 32b agent: it saw `strings` return nothing, ran the binary under the
 spy, and read the decrypted key straight off the `strcmp`, two steps later than
-the plaintext build. The two builds it could not crack are the two that do not
-hold the secret in the client: `verifier` ships `SHA-256(key)` (nothing to read,
-not invertible), and `locked` ships the protected asset as AES-256-GCM
-ciphertext that only the key decrypts, with no gate to patch (`tools/seal.c` +
-`src/license_locked.c`). Against both, the agent falls back to brute force and
+the plaintext build. The builds it could not crack all share one trait,
+they do not hold the secret in the client: `verifier` ships `SHA-256(key)`
+(nothing to read, not invertible); `locked` ships the asset as AES-256-GCM
+ciphertext that only the key decrypts, with no gate to patch; `online` keeps
+even that key on a server and ships only a token; and `compute` keeps the logic
+itself on the server. Against all of them the agent falls back to guessing and
 gets nothing.
 
 The honest conclusion the toolkit states up front: **static obfuscation raises
@@ -262,10 +264,15 @@ is a measurement plus the architecture that follows from it**: key-as-lock for
 offline binaries (`make locked-demo`), and a server-issued key for the online
 case (`make online-demo`), where the key lives on a license server
 (`server/license_server.py`) and the client holds only a token, so a stolen
-binary with the server down or its token revoked recovers nothing. The one tier
-beyond this, which removes even the authorized-user memory dump, is server-side
-execution (secret logic on the server, client gets only results). Reproduce with
-`make attack-demo`, `make locked-demo`, and `make online-demo`.
+binary with the server down or its token revoked recovers nothing. The top tier
+is server-side execution (`make compute-demo`): the secret logic itself runs on
+the server (`server/compute_server.py`), the client sends inputs and receives
+only results, so there is no key, asset, or formula on the client to recover
+even while the server is live. Its one residual exposure is black-box probing
+(query the oracle and try to approximate it), which the server rate-limits, logs
+and can revoke, and which is the best achievable for logic that must run for a
+client at all. Reproduce with `make attack-demo`, `make locked-demo`,
+`make online-demo`, and `make compute-demo`.
 
 ## 4. Usage
 
@@ -280,7 +287,7 @@ agent_attack.py <bin> --secret S [--max-steps N]     # iterating agent cost
 
 The repository's `make` targets (`scan`, `reharden`, `m3-encrypt`,
 `readability-demo`, `agent-demo`, `benchmark`, `attack-demo`, `locked-demo`,
-`online-demo`, `pe-demo`) reproduce the results
+`online-demo`, `compute-demo`, `pe-demo`) reproduce the results
 above on the bundled worked example; see [docs/lab.md](docs/lab.md).
 
 ## 5. Implementation notes and limitations

@@ -316,6 +316,42 @@ a signed and device-bound token, and short-lived keys.
 
 ---
 
+# server/compute_server.py + src/compute_client.c - server-side execution
+
+The strongest tier, and the end of the ladder. The protected IP is an
+ALGORITHM (proprietary pricing coefficients), and it never leaves the server.
+The client sends inputs and the server returns only the result. Unlike every
+earlier tier, there is no key, asset, or formula on the client at all, up or
+down, so reverse-engineering the client reveals the request shape and nothing
+about the IP.
+
+- `server/compute_server.py`: holds the coefficients, serves `POST /compute`
+  (token-gated against `server/licenses.json`), runs the secret model, returns
+  only the price, and logs every call.
+- `src/compute_client.c`: sends `<qty> <tier>` with its token and prints the
+  returned price. Contains no coefficients.
+
+```bash
+make compute-demo    # valid token gets a price; revoked/down get nothing;
+                     # and `strings` on the client shows no coefficients
+python3 tools/agent_attack.py build/compute_o0 --secret "0.000417"  # a coefficient
+```
+
+Measured: with the server live, `agent_attack` on the client cannot recover any
+coefficient; the client only ever yields computed prices, never the model.
+
+**Honest boundary (the real one for this tier).** The IP is safe from *reading*,
+but an authorized caller can PROBE the oracle: send many `(qty, tier)` inputs,
+collect prices, and try to fit/approximate the model (model extraction). That is
+a much harder attack than reading the code, it needs many queries, and the
+server can rate-limit, add noise, log, and revoke. There is no tier beyond this,
+because any output the client is allowed to see is information an attacker can
+collect. Server-side execution turns "steal the code" into "reconstruct a black
+box from its answers", which is the best achievable for logic that must run for
+a client at all.
+
+---
+
 # tools/m3_rewrite - reference-correct rewriting via GTIRB (M3 foundation)
 
 Round-trips a binary through GrammaTech GTIRB, reference-correctly:
