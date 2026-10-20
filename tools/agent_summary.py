@@ -11,10 +11,16 @@ a selling point for a product customers run on their own binaries. Override with
 OLLAMA_URL / REEXPOSE_MODEL.
 
 Usage: agent_summary.py <binary> --func <name> [--secret "<literal>"]
-                        [--concepts "a,b,c"] [--json]
+                        [--concepts "a,b,c"] [--disasm] [--json]
 
   --secret   a literal value (e.g. the license key) whose appearance in the
              model's answer proves it recovered the logic; weighted heavily.
+  --disasm   feed the model raw disassembly instead of Ghidra pseudocode. This
+             models the agentic attacker, who reads asm directly. It matters:
+             obfuscation that breaks the decompiler scores low with pseudocode
+             but is partly recovered from disasm (flattened check_license:
+             0 via pseudocode, 25 via disasm on a 32b model). So "pseudocode"
+             measures decompiler readability, "disasm" the stronger attacker.
 """
 from __future__ import annotations
 
@@ -51,6 +57,20 @@ def pseudocode(binary: str, func: str | None) -> str:
         return open(out).read() if os.path.exists(out) else ""
 
 
+def disasm(binary: str, func: str) -> str:
+    """Raw objdump disassembly of one function. This models the agentic
+    attacker, who reasons about the asm directly rather than trusting the
+    decompiler's structured output, so it recovers flattened control flow the
+    decompiler fails on. Needs the symbol (will not find a stripped function)."""
+    out = subprocess.run(["objdump", "-d", "--disassemble=" + func, binary],
+                         capture_output=True, text=True).stdout
+    lines = out.splitlines()
+    for i, ln in enumerate(lines):
+        if "<" + func + ">:" in ln:
+            return "\n".join(lines[i:]).strip()
+    return ""
+
+
 def ask(prompt: str) -> str:
     body = json.dumps({"model": MODEL, "prompt": prompt, "stream": False,
                        "options": {"temperature": 0}}).encode()
@@ -80,20 +100,33 @@ DEFAULT_CONCEPTS = ["compare", "match", "equal", "strcmp", "valid", "string"]
 
 
 def evaluate(binary: str, func: str, secret: str = None,
-             concepts: list[str] = None):
-    """Decompile `func`, ask the model to explain it, and score understanding.
-    Returns (exposure_score, detail_dict). Reusable by reexpose --agent."""
+             concepts: list[str] = None, source: str = "pseudocode"):
+    """Ask the model to explain `func` and score understanding. `source` picks
+    what the model sees: "pseudocode" (Ghidra decompiler output, measures
+    decompiler readability to a one-shot LLM) or "disasm" (raw objdump, models
+    the agentic attacker who reads asm directly). These differ: obfuscation that
+    breaks the decompiler scores low under "pseudocode" but is partly recovered
+    under "disasm", so report which source you used. Returns (score, detail)."""
     concepts = concepts or DEFAULT_CONCEPTS
-    code = pseudocode(binary, func)
-    if not code.strip():
-        raise RuntimeError("no pseudocode (wrong func name?)")
-    prompt = ("You are reverse engineering a program. Below is decompiled C for "
-              "one function.\n\n```c\n" + code + "\n```\n\nIn one or two sentences, "
-              "explain what this function does, how it works, and any constant "
-              "values it depends on.")
+    if source == "disasm":
+        code = disasm(binary, func)
+        if not code.strip():
+            raise RuntimeError("no disassembly (stripped, or wrong func name?)")
+        prompt = ("Here is x86-64 disassembly (AT&T syntax) of one function.\n\n"
+                  "```\n" + code + "\n```\n\nReason about the control flow and "
+                  "explain what this function does, how it works, and any "
+                  "constant values or strings it compares against.")
+    else:
+        code = pseudocode(binary, func)
+        if not code.strip():
+            raise RuntimeError("no pseudocode (wrong func name?)")
+        prompt = ("You are reverse engineering a program. Below is decompiled C "
+                  "for one function.\n\n```c\n" + code + "\n```\n\nIn one or two "
+                  "sentences, explain what this function does, how it works, and "
+                  "any constant values it depends on.")
     summary = ask(prompt)
     sc, hits, secret_hit, hedged = score(summary, concepts, secret)
-    return sc, {"summary": summary, "concepts_hit": hits,
+    return sc, {"summary": summary, "concepts_hit": hits, "source": source,
                 "secret_recovered": secret_hit, "hedged": hedged}
 
 
@@ -118,18 +151,20 @@ def main() -> int:
                 _optval(a, "--concepts", ",".join(DEFAULT_CONCEPTS)).split(",")
                 if c.strip()]
     secret = _optval(a, "--secret")
+    source = "disasm" if "--disasm" in a else "pseudocode"
 
-    sc, d = evaluate(binary, func, secret, concepts)
+    sc, d = evaluate(binary, func, secret, concepts, source)
     summary, hits = d["summary"], d["concepts_hit"]
     secret_hit, hedged = d["secret_recovered"], d["hedged"]
 
     if "--json" in a:
         print(json.dumps({"binary": binary, "func": func, "model": MODEL,
-                          "summary": summary, "concepts_hit": hits,
-                          "secret_recovered": secret_hit, "hedged": hedged,
+                          "source": source, "summary": summary,
+                          "concepts_hit": hits, "secret_recovered": secret_hit,
+                          "hedged": hedged,
                           "summary_accuracy_exposure": round(sc, 1)}, indent=2))
     else:
-        print(f"model   : {MODEL}")
+        print(f"model   : {MODEL}  (source: {source})")
         print(f"summary : {summary}")
         print(f"concepts: {hits}  secret_recovered={secret_hit}  hedged={hedged}")
         print(f"summary-accuracy exposure: {sc:.1f}/100")
