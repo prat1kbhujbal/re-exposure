@@ -2,11 +2,12 @@
 
 # REN
 
-### Reverse Engineer Nothing
+### An honest exposure meter for agent-driven reverse engineering
 
-**Measure how exposed a binary is to AI-assisted reverse engineering, remove what
-the analyst reads, and prove behavior is unchanged. The inverse of
-[REA](https://github.com/morluto/rea) (Reverse Engineer Anything).**
+**Measure how much an AI agent can actually recover from your compiled binary,
+see that obfuscation only delays it, and apply the protection ladder that holds:
+keep the secret off the client. The defensive counterpart to agent RE tooling
+like [REA](https://github.com/morluto/rea).**
 
 ![status](https://img.shields.io/badge/status-research%20prototype-orange?style=flat-square)
 ![host](https://img.shields.io/badge/host-Linux%20x86--64-informational?style=flat-square)
@@ -20,70 +21,82 @@ the analyst reads, and prove behavior is unchanged. The inverse of
 Reverse engineering is increasingly agent-driven: tools such as
 [REA](https://github.com/morluto/rea), GhidraMCP and ida-pro-mcp let a large
 language model read a binary, name its functions, explain a feature and
-reconstruct it, working from the symbols, strings, debug metadata and recovered
-control flow left in the file. **REN** is the inverse of that pipeline. It
-(1) *quantifies* how cheaply such an analyst can understand a compiled binary,
-(2) *removes* the signals the analyst anchors on, without source and without
-changing behavior, and (3) *verifies* behavior preservation byte-for-byte on
-every transformation. This document reports the design and measured results on
-real ELF binaries (GNU coreutils and others) and on Windows PE binaries built
-and executed under Wine on a Linux host.
+reconstruct it. **REN** asks a blunt question and answers it honestly: how much
+of that can you actually stop?
 
-It is a research prototype, not a product. Every technique raises the *cost* of
-analysis; none makes it impossible. Its scope is protecting software you own; it
-removes comprehension aids, it does not conceal what a program does from a
-defender.
+It does three things. (1) It *measures* how cheaply an agent recovers meaning
+from a binary, including an iterating, tool-using agent that reads disassembly,
+runs the target under a debugger-equivalent, and transcribes what it finds.
+(2) It uses that measurement to show, on real binaries, that classic hardening
+(symbol stripping, string encryption, control-flow flattening) raises the
+agent's cost by only a step or two and does not stop it. (3) It ships the
+protections that *do* hold, as a ladder, each proven against the same agent:
+keep the secret out of the binary (a verifier, or key-as-lock encryption of the
+asset), then off the client entirely (a server-issued key, then server-side
+execution). Results below are on real ELF binaries (GNU coreutils and others),
+Windows PE under Wine, and a local LLM agent.
+
+The one conclusion under all of it: **you cannot make software that runs on
+someone else's machine un-reverse-engineerable, and an LLM agent only makes the
+attacker cheaper. What you can do is not ship the secret.** REN measures the gap
+and walks you to that architecture. Scope is protecting software you own; it is
+not for concealing what a program does from a defender. Research prototype.
 
 ## 1. Motivation
 
 A reverse engineer, human or agent, anchors on a small set of signals: symbol
-names, string literals, debug and toolchain metadata, recognizable code
-structure, and the decompiler's output. An LLM agent is especially dependent on
-these, because its summaries are generated from exactly that recovered text.
-Classic software protection targets the human and the decompiler; REN adds
-an explicit model of, and defense against, the *agent* in the loop, and insists
-on measurement: it reports exposure before and after, rather than asserting that
-a transform helped.
+names, string literals, metadata, recognizable code structure, and the
+decompiler's output. The usual response is to remove or scramble those signals
+(strip, encrypt, obfuscate). That helps against humans and one-shot tools, but
+an agent that reads raw disassembly and runs the binary under a debugger is not
+stopped by it, and the only way to see that clearly is to measure the *agent*,
+not the decompiler. REN is built around that measurement and the conclusion it
+forces: the only thing that denies an agent a secret is not having the secret in
+the client. Everything REN ships is either a way to measure that, or a way to
+achieve it.
 
 ### Flowchart
 
 ```mermaid
-flowchart LR
-    BIN["Target binary<br/>(ELF / PE)"] --> M
+flowchart TB
+    BIN["Your binary / app<br/>(ELF / PE)"] --> M
 
-    subgraph M["1 - Measure (reexpose)"]
+    subgraph M["1 - Measure: what can an agent recover?"]
         direction TB
-        AX["symbols · strings · metadata<br/>entropy · imports<br/>(+ Ghidra readability,<br/>+ LLM agent axis)"] --> SC["Exposure score<br/>0 = hardened .. 100 = wide open"]
+        AX["reexpose axes + agent_attack:<br/>strings, disasm,<br/>run under a debugger-spy"] --> SC["cost to recover the secret<br/>(steps; recovered or not)"]
     end
 
-    M --> H
+    M --> Q{"Secret recoverable<br/>from the client?"}
+    Q -->|"obfuscation only<br/>(delays 1-2 steps)"| WEAK["Not enough:<br/>the agent still recovers it"]
+    Q -->|"keep the secret off the client"| LADDER
 
-    subgraph H["2 - Harden"]
+    subgraph LADDER["2 - Protection ladder (each proven vs the agent)"]
         direction TB
-        RH["reharden:<br/>strip symbols / debug / metadata"]
-        EN["m3_rewrite:<br/>encrypt strings (per-use + load-time)"]
+        V["verifier / key-as-lock<br/>secret not in the binary"] --> O["server-issued key<br/>key only on a server"] --> S["server-side execution<br/>logic only on a server"]
     end
 
-    H --> G{"3 - Verify<br/>same stdout + exit code,<br/>byte for byte?"}
-    G -->|identical| OUT["Hardened binary"]
-    G -->|differs| NO["Refuse<br/>(never ship a broken binary)"]
-    OUT -. re-measure to prove the drop .-> M
+    LADDER --> DONE["Secret unrecoverable by reading;<br/>attack reduced to black-box probing"]
 ```
 
 ### How it works
 
-1. **Measure.** `reexpose` reads a finished binary the way an analyst would and
-   gives it an *exposure score*: how many names, strings, and metadata an agent
-   could anchor on. Higher means easier to reverse engineer.
-2. **Harden.** `reharden` deletes the metadata (symbols, debug info) the loader
-   never needs; `m3_rewrite` encrypts the string literals so they are decrypted
-   only at runtime. Neither touches what the program computes.
-3. **Verify.** Every change is run against the original on sample inputs and
-   compared byte for byte. If the output differs at all, the change is thrown
-   away. You can only ever get back a binary that behaves exactly like the one
-   you put in, or nothing.
+1. **Measure.** `reexpose` scores how much an analyst can anchor on (symbols,
+   strings, metadata), and `agent_attack` runs an actual tool-using LLM agent at
+   the binary and reports the *cost to recover* the secret: how many steps, and
+   whether it got it at all.
+2. **Read the verdict honestly.** On the measurement, classic hardening (strip,
+   encrypt, flatten) moves the agent's cost by a step or two and no more. If the
+   secret is in the client, the agent gets it. The number tells you that plainly
+   instead of letting you assume a transform helped.
+3. **Climb the ladder until the secret is off the client.** A verifier or
+   key-as-lock encryption keeps the secret out of the binary; a server-issued
+   key keeps it off the client; server-side execution keeps the logic itself on
+   the server. Each rung is proven against the same agent (`cracked=false`).
 
-Then measure again to see the score drop. That is the whole system.
+Any binary-modifying step is gated: the rewritten binary is run against the
+original and compared byte for byte, and a transform that changes behavior is
+refused. That is the whole system: measure the agent, then move the secret
+rather than hide it.
 
 ## 2. Approach
 
@@ -101,16 +114,23 @@ weighted sum over five static axes computed from `nm`, `readelf`, `objdump` and
 | entropy | 10 | plaintext code on disk (low) vs packed/encrypted (high) |
 | imports | 5 | library calls that give behavioral footholds |
 | readability (`--deep`) | opt-in | Ghidra decompiler output quality (structure vs junk, flattening) |
-| agent (`--agent`) | opt-in | whether a local LLM, given the decompiled function, recovers its mechanism and secrets |
+| agent (`--agent`) | opt-in | whether a local LLM, given one function, recovers its mechanism and secrets |
+| agent-attack (`agent_attack`) | tool-using | an iterating LLM agent with strings/disasm/run tools; reports cost to recover (steps) and whether it succeeded |
 
-### 2.2 Hardening
+### 2.2 Hardening (cost-raisers, measured, not protection)
+
+These are the classic transforms. REN includes them because they are what most
+"anti-RE" tools sell, and because the measurement above shows exactly how little
+they buy against an agent (section 3.5): a step or two, not safety. Use them to
+slow a human or a one-shot tool, never as the thing protecting a secret.
 
 - **Metadata denial** (`reharden`): removes the symbol table, debug sections,
   build-id and toolchain notes from a finished binary. All removed sections are
   non-loadable, so behavior is untouched. ELF and PE.
 - **String encryption** (`encrypt_strings`, `m3_rewrite`): encrypts string
   literals on disk and decrypts them at runtime. Two mechanisms: a LIEF-based
-  entry-point stub, and a reference-correct GTIRB round-trip (below).
+  entry-point stub, and a reference-correct GTIRB round-trip (below). An agent
+  that runs the binary reads the decrypted string off the comparison anyway.
 
 ### 2.3 Reference-correct rewriting
 
@@ -133,6 +153,31 @@ and compares exit code and stdout **byte-for-byte**. A transform that changes
 observable behavior is refused rather than emitted. The toolkit never produces a
 binary that behaves differently from its input; unsupported constructs degrade
 to a safe refusal.
+
+### 2.5 Protection ladder (what actually holds)
+
+The hardening above is a cost-raiser. The protections that actually deny an
+agent the secret all share one property, the secret is not in the client, and
+each is proven against the iterating agent (section 3.5). In increasing strength:
+
+- **Verifier** (`src/license_verifier.c`): ship `SHA-256(key)`, not the key. The
+  client can check a key but cannot reveal one; the stored digest is not
+  invertible.
+- **Key-as-lock** (`tools/seal.c` + `src/license_locked.c`): the protected asset
+  ships as AES-256-GCM ciphertext and the key decrypts it. No gate to patch and
+  no plaintext in the file; a wrong key fails the auth tag. The key is still
+  supplied at runtime, so this stops anyone without a valid key.
+- **Server-issued key** (`server/license_server.py` + `src/license_online.c`):
+  the key lives on a license server; the client holds only a token. Offline or
+  revoked recovers nothing, and the key never persists in the client.
+- **Server-side execution** (`server/compute_server.py` +
+  `src/compute_client.c`): the secret logic runs on the server; the client sends
+  inputs and gets only results. Nothing of the IP is in the client, even with
+  the server live. Residual exposure is black-box probing, which the server
+  rate-limits, logs and can revoke.
+
+Each rung has a `make` demo and an `agent_attack` run; the measured ladder is
+section 3.5.
 
 ## 3. Results
 
