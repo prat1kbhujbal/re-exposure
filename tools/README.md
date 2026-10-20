@@ -136,12 +136,20 @@ strip      36.1 (C)   # reharden: symbols/debug/notes gone
 # tools/agent_summary - LLM summary-accuracy axis
 
 Asks an LLM to explain a function and scores whether it recovered the mechanism
-and secret. The `source` matters and the tool defaults are easy to misread:
-`pseudocode` (Ghidra output) measures decompiler-output readability to a
-one-shot LLM; `--disasm` (raw objdump) models the agentic attacker who reads asm
-directly. Obfuscation that breaks the decompiler scores low under `pseudocode`
-but is partly recovered under `--disasm`, so report both, not the pseudocode
-number alone.
+and secret. The `source` matters and the tool defaults are easy to misread, so
+there are three, in order of attacker strength:
+
+- `pseudocode` (default, Ghidra output) measures decompiler-output readability
+  to a one-shot LLM.
+- `--disasm` (raw objdump) models an attacker who reads asm directly.
+- `--agentic` (disasm + the binary's strings) models what an agent gathers in
+  its first few tool calls, so it recovers a plaintext `.rodata` secret even
+  when control flow is flattened. It is the honest upper bound on a one-pass
+  agentic read; it cannot see a secret that is encrypted on disk.
+
+Obfuscation that breaks the decompiler scores low under `pseudocode` but is
+recovered under `--disasm`/`--agentic`, so report the progression, not the
+pseudocode number alone.
 
 - **Local model via Ollama** (`REEXPOSE_MODEL`, default `qwen2.5-coder:1.5b`,
   `OLLAMA_URL` default `http://localhost:11434`) - the analyzed code never
@@ -152,23 +160,30 @@ number alone.
   not a concept, so clean vs obfuscated separate on recovered logic, not naming.
 
 ```bash
-python3 tools/agent_summary.py <bin> --func <name> --secret "<literal>" [--disasm] [--json]
+python3 tools/agent_summary.py <bin> --func <name> --secret "<literal>" [--disasm|--agentic] [--json]
 make agent-demo        # clean vs flattened check_license
+make benchmark         # the full tiered table below (slow; needs a strong model)
 ```
 
-Measured on a 32b model, same `check_license`:
+Measured on a 32b model (`qwen2.5-coder:32b`), same `check_license`, clean vs
+control-flow-flattened (behavior identical). `*` = the model quoted the literal
+secret:
 
 ```
-                       clean   flattened
-pseudocode source       75.0     0.0     (flattened: Ghidra gave the model a stub)
---disasm source         41.7    25.0     (model reconstructs the compare from asm)
+                 clean    flattened
+pseudocode        75.0      0.0      (flattened: Ghidra gave the model a stub)
+--disasm          41.7     25.0      (model reconstructs the compare from asm)
+--agentic         91.7*    75.0*     (disasm + strings; recovers the secret)
 ```
 
-The flattened 0 under `pseudocode` reflects the decompiler failing, not the
-model. From raw asm the model recovers the mechanism, so control-flow flattening
-does not stop an agent that reads disassembly. A bigger model raises fidelity on
-clean code; it does not close the pseudocode-vs-disasm gap, since that gap is
-about what the decompiler produced.
+Read the flattened column top to bottom: 0 -> 25 -> 75 as the attacker gets
+stronger. The flattened 0 under `pseudocode` reflects the decompiler failing,
+not the binary being protected. From raw asm the model recovers the mechanism;
+given the strings too, it recovers the plaintext secret outright, on the
+flattened build as readily as the clean one. So control-flow flattening does not
+stop an agent, and the thing that would (removing the plaintext secret from
+`.rodata`) is string encryption, not obfuscation. A bigger model raises clean-
+code fidelity; it does not change that conclusion.
 
 ---
 

@@ -203,24 +203,30 @@ same `check_license` in clean vs control-flow-flattened form:
 | --- | --- | --- |
 | decompiler readability (Ghidra) | 100.0 | 0.0 |
 | LLM summary (Ghidra pseudocode, 32b) | 75.0 | 0.0 |
-| LLM summary (**raw disassembly**, 32b) | 41.7 | **25.0** |
+| LLM summary (**raw disassembly**, 32b) | 41.7 | 25.0 |
+| LLM summary (**disasm + strings**, 32b) | 91.7\* | **75.0\*** |
 
-The first two rows look like a dramatic result: obfuscation drops the agent to
-zero. **That is misleading, and the raw-disassembly row is why.** The "0" on the
-flattened function is an artifact of feeding the model Ghidra's output: Ghidra
-could not reconstruct the flattened control flow and handed the model a stub, so
-the model had nothing. When you instead give the model the raw disassembly, as a
-real agentic attacker would, a 32b model **reconstructs the mechanism** (a
-char-by-char comparison against a stored string) and the flattened score goes
-from 0 back up to 25. Control-flow flattening does not stop an agent that reads
-the asm.
+\* = the model reproduced the literal license key.
+
+The top rows look like a dramatic result: obfuscation drops the agent to zero.
+**That is misleading, and the lower rows are why.** The "0" on the flattened
+function is an artifact of feeding the model Ghidra's output: Ghidra could not
+reconstruct the flattened control flow and handed the model a stub, so the model
+had nothing. Give the model the raw disassembly instead, as a real agentic
+attacker would, and a 32b model reconstructs the mechanism (score 0 to 25); give
+it the disassembly **plus the strings in the binary**, which an agent reads with
+one more tool call, and it recovers the plaintext key outright, on the flattened
+build (75) almost as readily as the clean one (92). Read the flattened column top
+to bottom: `0 -> 25 -> 75` as the attacker gets stronger.
 
 So the honest, narrower claim is: the agent axis with the `pseudocode` source
 measures **decompiler-output readability to a one-shot LLM**, not resistance to
-an agentic attacker. The gap between the pseudocode and disassembly rows is the
-real signal: obfuscation that breaks the decompiler raises the bar for the many
-analysts and tools that rely on it, but not for an agent reading disassembly. Use
-`agent_summary.py --disasm` to measure the stronger attacker.
+an agentic attacker; the gap between the rows is the real signal. Control-flow
+flattening does not stop an agent, because the secret was never in the control
+flow. The thing that denies the agentic read is removing the plaintext from
+`.rodata`, which is what the string-encryption transform does, not obfuscation.
+Measure the progression with `agent_summary.py --disasm` and `--agentic`, or
+`make benchmark` for the whole table.
 
 ## 4. Usage
 
@@ -228,12 +234,13 @@ analysts and tools that rely on it, but not for an agent reading disassembly. Us
 reexpose.py  <bin> [--json|--quiet] [--gate N] [--deep] [--agent FUNC --secret S]
 reharden.py  <bin> -o <out> [--run "ARGS"]
 m3_rewrite.py <bin> -o <out> --encrypt-strings [--verify "ARGS"]...
-agent_summary.py <bin> --func FUNC --secret S
+agent_summary.py <bin> --func FUNC --secret S [--disasm|--agentic]
+benchmark.py [--sources pseudocode,disasm,agentic]   # tiered table
 ```
 
 The repository's `make` targets (`scan`, `reharden`, `m3-encrypt`,
-`readability-demo`, `agent-demo`, `pe-demo`) reproduce the results above on the
-bundled worked example; see [docs/lab.md](docs/lab.md).
+`readability-demo`, `agent-demo`, `benchmark`, `pe-demo`) reproduce the results
+above on the bundled worked example; see [docs/lab.md](docs/lab.md).
 
 ## 5. Implementation notes and limitations
 

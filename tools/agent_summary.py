@@ -11,7 +11,7 @@ a selling point for a product customers run on their own binaries. Override with
 OLLAMA_URL / REEXPOSE_MODEL.
 
 Usage: agent_summary.py <binary> --func <name> [--secret "<literal>"]
-                        [--concepts "a,b,c"] [--disasm] [--json]
+                        [--concepts "a,b,c"] [--disasm | --agentic] [--json]
 
   --secret   a literal value (e.g. the license key) whose appearance in the
              model's answer proves it recovered the logic; weighted heavily.
@@ -21,6 +21,12 @@ Usage: agent_summary.py <binary> --func <name> [--secret "<literal>"]
              but is partly recovered from disasm (flattened check_license:
              0 via pseudocode, 25 via disasm on a 32b model). So "pseudocode"
              measures decompiler readability, "disasm" the stronger attacker.
+  --agentic  feed the model the function's disassembly plus the strings in the
+             binary, the context a real agent gathers from its first few tool
+             calls. This recovers plaintext secrets that live in .rodata even
+             when control flow is flattened, so it is the honest upper bound on
+             a one-pass agentic read. It cannot see a secret that is encrypted
+             on disk, which is the gap the hardening is meant to open.
 """
 from __future__ import annotations
 
@@ -71,12 +77,15 @@ def disasm(binary: str, func: str) -> str:
     return ""
 
 
-def ask(prompt: str) -> str:
+def ask(prompt: str, num_predict: int | None = None) -> str:
+    opts = {"temperature": 0}
+    if num_predict:                 # cap runaway generation on slow local CPUs
+        opts["num_predict"] = num_predict
     body = json.dumps({"model": MODEL, "prompt": prompt, "stream": False,
-                       "options": {"temperature": 0}}).encode()
+                       "options": opts}).encode()
     req = urllib.request.Request(OLLAMA + "/api/generate", data=body,
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=240) as r:
+    with urllib.request.urlopen(req, timeout=600) as r:
         return json.loads(r.read())["response"].strip()
 
 
@@ -108,7 +117,22 @@ def evaluate(binary: str, func: str, secret: str = None,
     breaks the decompiler scores low under "pseudocode" but is partly recovered
     under "disasm", so report which source you used. Returns (score, detail)."""
     concepts = concepts or DEFAULT_CONCEPTS
-    if source == "disasm":
+    npred = None
+    if source == "agentic":
+        dis = disasm(binary, func)
+        if not dis.strip():
+            raise RuntimeError("no disassembly (stripped, or wrong func name?)")
+        strs = subprocess.run(["strings", "-n", "4", binary],
+                              capture_output=True, text=True).stdout
+        code = (dis + "\n\n# strings present in the binary (may be truncated):\n"
+                + strs[:4000])
+        prompt = ("You are a reverse engineer. Below is the disassembly of one "
+                  "function plus the strings present in the binary. In 3-5 "
+                  "sentences state what the function does, the mechanism it uses "
+                  "(e.g. the library call), and quote any literal constant or "
+                  "string it compares against.\n\n```\n" + code + "\n```")
+        npred = 320          # concise answer; the full asm walkthrough is noise
+    elif source == "disasm":
         code = disasm(binary, func)
         if not code.strip():
             raise RuntimeError("no disassembly (stripped, or wrong func name?)")
@@ -124,7 +148,7 @@ def evaluate(binary: str, func: str, secret: str = None,
                   "for one function.\n\n```c\n" + code + "\n```\n\nIn one or two "
                   "sentences, explain what this function does, how it works, and "
                   "any constant values it depends on.")
-    summary = ask(prompt)
+    summary = ask(prompt, npred)
     sc, hits, secret_hit, hedged = score(summary, concepts, secret)
     return sc, {"summary": summary, "concepts_hit": hits, "source": source,
                 "secret_recovered": secret_hit, "hedged": hedged}
@@ -151,7 +175,12 @@ def main() -> int:
                 _optval(a, "--concepts", ",".join(DEFAULT_CONCEPTS)).split(",")
                 if c.strip()]
     secret = _optval(a, "--secret")
-    source = "disasm" if "--disasm" in a else "pseudocode"
+    if "--agentic" in a:
+        source = "agentic"
+    elif "--disasm" in a:
+        source = "disasm"
+    else:
+        source = "pseudocode"
 
     sc, d = evaluate(binary, func, secret, concepts, source)
     summary, hits = d["summary"], d["concepts_hit"]

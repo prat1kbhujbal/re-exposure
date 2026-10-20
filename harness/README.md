@@ -131,8 +131,12 @@ build-gated; the axis itself is engine-agnostic.
 - [x] **`--gate <max>`** exit-nonzero CI mode so releases fail if exposure regresses.
 - [x] **Ghidra headless backend** (`--deep` decompiler-readability axis).
 - [x] **Agent backend** (`--agent` summary-accuracy axis, pseudocode + `--disasm`).
-- [ ] **Model the full agentic attack** (iterate over raw asm + tooling), since
-      the pseudocode source only measures decompiler readability.
+- [x] **Model the agentic attack** (`agent_summary --agentic`: disasm + the
+      binary's strings in one pass; `tools/benchmark.py` for the tiered table).
+      Result: it recovers the plaintext secret on clean and flattened builds
+      alike, so flattening does not help; string encryption is what denies it.
+- [ ] **Iterated/tool-using agent** (let the model request more disassembly and
+      transcribe a decryptor), to measure resistance to string encryption too.
 - [ ] **Calibration harness**: correlate axis scores with real agent accuracy to
       set weights empirically instead of by hand.
 - [ ] Real PE/Mach-O test fixtures (needs a cross-compiler; none on the dev box).

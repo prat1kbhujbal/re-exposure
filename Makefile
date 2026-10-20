@@ -75,6 +75,12 @@ agent-demo: $(B)/clean_o0 $(B)/flat_o0
 	@echo "== clean =="; python3 tools/agent_summary.py $(B)/clean_o0 --func check_license
 	@echo "== flattened =="; python3 tools/agent_summary.py $(B)/flat_o0 --func check_license
 
+# tiered agent-exposure table: pseudocode vs disasm vs agentic, clean vs
+# flattened. Slow (local LLM, and pseudocode needs Ghidra); pick a strong model.
+# e.g. REEXPOSE_MODEL=qwen2.5-coder:32b make benchmark
+benchmark: $(B)/clean_o0 $(B)/flat_o0
+	python3 tools/benchmark.py
+
 # M3: per-use string encryption via GTIRB (needs docker image grammatech/ddisasm)
 m3-encrypt: $(B)/demo_nopie
 	python3 tools/m3_rewrite.py $(B)/demo_nopie -o $(B)/demo_nopie.m3enc \
