@@ -187,6 +187,53 @@ code fidelity; it does not change that conclusion.
 
 ---
 
+# tools/agent_attack - iterating tool-using agent (honest cost curve)
+
+Where `agent_summary` is a one-shot read, this is a real agent loop: an LLM is
+given a goal (recover the license key the program checks against) and a small
+toolset, and it picks one action per turn until it recovers the key or gives up.
+The output is a *cost to recover* (how many steps, which tool cracked it), not a
+static score.
+
+Tools the agent can call: `strings` (static), `disasm <func>` (static),
+`run <probe>` (dynamic: executes the target under `cmpspy.c`, an LD_PRELOAD shim
+that logs every string-comparison's operands), and `answer <key>`. The `run`
+tool is the debugger step the common objection points at: a key XOR-encrypted on
+disk is still read straight off the `strcmp` once the program decrypts it in
+memory.
+
+The driver is a LOCAL Ollama model (`REEXPOSE_MODEL`), so the measured attacker
+is a floor, not a ceiling. We record the first step at which the real key became
+visible in a tool result (what any agent reads off), separately from whether
+this particular model then typed it back.
+
+```bash
+python3 tools/agent_attack.py <bin> --secret "<key>" [--max-steps 6] [--json]
+make attack-demo        # the three builds below, each run under the agent loop
+```
+
+Measured on a 32b model, same program built three ways (behavior identical):
+
+```
+build               protection                    cracked?  key readable at
+clean_o0            none (plaintext in .rodata)    yes       step 1  (strings)
+enc_o0              XOR string encryption          yes       step 3  (run: spy)
+verifier_o0         key not in client (SHA-256)    no        never
+```
+
+The point: string encryption moved recovery from step 1 to step 3, it did not
+prevent it; the agent saw `strings` fail, ran the binary under the compare-spy,
+and read the decrypted key off the `strcmp`. Only `verifier_o0`, which ships
+`SHA-256(key)` instead of the key (`src/license_verifier.c`), is not cracked:
+there is no plaintext key anywhere in the client to read, statically or
+dynamically, so the agent degrades to brute force. The honest lesson is that
+static obfuscation raises the step count by one or two, and the thing that
+actually holds is keeping the secret off the client.
+
+`cmpspy.c` is built to `build/cmpspy.so` (the harness compiles it on demand).
+
+---
+
 # tools/m3_rewrite - reference-correct rewriting via GTIRB (M3 foundation)
 
 Round-trips a binary through GrammaTech GTIRB, reference-correctly:

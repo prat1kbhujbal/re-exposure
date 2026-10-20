@@ -81,6 +81,24 @@ agent-demo: $(B)/clean_o0 $(B)/flat_o0
 benchmark: $(B)/clean_o0 $(B)/flat_o0
 	python3 tools/benchmark.py
 
+# iterating-agent cost curve: an LLM with tools (strings/disasm/run) tries to
+# recover the key from three builds of the same program.
+$(B)/cmpspy.so: tools/cmpspy.c
+	$(CC) -shared -fPIC -O2 -o $@ $< -ldl
+$(B)/verifier_o0: src/license_verifier.c
+	$(CC) -O0 -o $@ $<
+# build2: take the plaintext build and XOR-encrypt its .rodata strings in place
+$(B)/enc_o0: $(B)/clean_o0
+	python3 tools/encrypt_strings.py $< -o $@ --all \
+	  --verify "ACME-PRO-2026-XK7Q" --verify "wrong"
+# plaintext -> encrypted -> key-not-in-binary; run each under the agent loop.
+# Slow (local LLM); pick a strong model, e.g. REEXPOSE_MODEL=qwen2.5-coder:32b
+attack-demo: $(B)/clean_o0 $(B)/enc_o0 $(B)/verifier_o0 $(B)/cmpspy.so
+	@for b in clean_o0 enc_o0 verifier_o0; do \
+	  echo "== $$b =="; \
+	  python3 tools/agent_attack.py $(B)/$$b --secret "ACME-PRO-2026-XK7Q"; \
+	done
+
 # M3: per-use string encryption via GTIRB (needs docker image grammatech/ddisasm)
 m3-encrypt: $(B)/demo_nopie
 	python3 tools/m3_rewrite.py $(B)/demo_nopie -o $(B)/demo_nopie.m3enc \

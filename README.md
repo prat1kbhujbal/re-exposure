@@ -228,6 +228,32 @@ flow. The thing that denies the agentic read is removing the plaintext from
 Measure the progression with `agent_summary.py --disasm` and `--agentic`, or
 `make benchmark` for the whole table.
 
+### 3.5 The agentic attack, measured end to end
+
+The summary axis is a one-shot read. `agent_attack.py` closes the loop with a
+real tool-using agent: a local LLM is given a goal (recover the license key) and
+four tools, `strings` and `disasm` (static), `run` (dynamic, executing the
+target under an LD_PRELOAD comparison-spy), and `answer`, and it chooses one per
+turn until it recovers the key or gives up. The result is a *cost to recover*,
+not a score. The same program is built three ways, behavior identical:
+
+| build | protection | cracked? | key readable at |
+| --- | --- | --- | --- |
+| plaintext | none | yes | step 1 (`strings`) |
+| encrypted | XOR string encryption | yes | step 3 (`run`: compare-spy) |
+| verifier | key not in client, stores SHA-256 | **no** | never |
+
+This is the objection stated plainly and then tested. String encryption did not
+stop the 32b agent: it saw `strings` return nothing, ran the binary under the
+spy, and read the decrypted key straight off the `strcmp`, two steps later than
+the plaintext build. The only build it could not crack is the one that does not
+hold the key at all (`src/license_verifier.c` ships `SHA-256(key)`, so there is
+no plaintext to read statically or dynamically and the agent falls back to brute
+force). The honest conclusion the toolkit now states up front: **static
+obfuscation raises the attacker's step count by one or two; it does not stop an
+agent with a debugger. What stops it is keeping the secret off the client.**
+Reproduce with `make attack-demo`.
+
 ## 4. Usage
 
 ```
@@ -236,10 +262,12 @@ reharden.py  <bin> -o <out> [--run "ARGS"]
 m3_rewrite.py <bin> -o <out> --encrypt-strings [--verify "ARGS"]...
 agent_summary.py <bin> --func FUNC --secret S [--disasm|--agentic]
 benchmark.py [--sources pseudocode,disasm,agentic]   # tiered table
+agent_attack.py <bin> --secret S [--max-steps N]     # iterating agent cost
 ```
 
 The repository's `make` targets (`scan`, `reharden`, `m3-encrypt`,
-`readability-demo`, `agent-demo`, `benchmark`, `pe-demo`) reproduce the results
+`readability-demo`, `agent-demo`, `benchmark`, `attack-demo`, `pe-demo`)
+reproduce the results
 above on the bundled worked example; see [docs/lab.md](docs/lab.md).
 
 ## 5. Implementation notes and limitations

@@ -135,8 +135,11 @@ build-gated; the axis itself is engine-agnostic.
       binary's strings in one pass; `tools/benchmark.py` for the tiered table).
       Result: it recovers the plaintext secret on clean and flattened builds
       alike, so flattening does not help; string encryption is what denies it.
-- [ ] **Iterated/tool-using agent** (let the model request more disassembly and
-      transcribe a decryptor), to measure resistance to string encryption too.
+- [x] **Iterated/tool-using agent** (`tools/agent_attack.py`): an LLM with
+      `strings`/`disasm`/`run` tools recovers the key and reports the step count.
+      Under it, XOR string encryption only delays recovery (plaintext step 1 ->
+      encrypted step 3, read off the compare via the LD_PRELOAD spy); a build
+      that stores `SHA-256(key)` instead of the key is not cracked at all.
 - [ ] **Calibration harness**: correlate axis scores with real agent accuracy to
       set weights empirically instead of by hand.
 - [ ] Real PE/Mach-O test fixtures (needs a cross-compiler; none on the dev box).
