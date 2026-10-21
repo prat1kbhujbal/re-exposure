@@ -1,10 +1,10 @@
 <div align="center">
 
-# REN
+# re-exposure
 
 ### An honest exposure meter for agent-driven reverse engineering
 
-**How much can an AI agent actually recover from your compiled binary? REN
+**How much can an AI agent actually recover from your compiled binary? re-exposure
 measures it, shows that obfuscation barely slows the agent down, and gives you
 the protections that hold. The defensive counterpart to agent RE tools like
 [REA](https://github.com/morluto/rea).**
@@ -20,7 +20,7 @@ the protections that hold. The defensive counterpart to agent RE tools like
 
 Reverse engineering is now agent-driven: [REA](https://github.com/morluto/rea),
 GhidraMCP and ida-pro-mcp point a language model at a binary and it names
-functions, explains features, and reconstructs logic. REN is the other side of
+functions, explains features, and reconstructs logic. re-exposure is the other side of
 that. It runs the same kind of agent at *your* binary, reports exactly how far
 it gets, and shows that the one thing which actually stops it is not shipping the
 secret.
@@ -46,7 +46,7 @@ client. `make attack-demo` and `make compute-demo` reproduce this.
 
 > You cannot make software that runs on someone else's machine
 > un-reverse-engineerable, and an agent only makes the attacker cheaper. What you
-> *can* do is not ship the secret. REN measures the gap and walks you there.
+> *can* do is not ship the secret. re-exposure measures the gap and walks you there.
 
 ## Quickstart
 
@@ -201,7 +201,7 @@ agent, because the secret was never in the control flow. Reproduce with
 - The crypto/server tiers are demonstrations: they speak plain HTTP to localhost
   and take a static token. Production needs TLS, a signed and device-bound token,
   short-lived keys, and rate-limiting on the compute oracle.
-- Scope is protecting software **you own**. REN removes comprehension aids and
+- Scope is protecting software **you own**. re-exposure removes comprehension aids and
   moves secrets off the client; it is not for concealing what a program does from
   a security tool or a defender. The measurement harness conceals nothing by
   design.
@@ -210,7 +210,7 @@ agent, because the secret was never in the control flow. Reproduce with
 
 - **The threat:** REA, GhidraMCP, ida-pro-mcp (LLM-over-decompiler agents).
 - **Rewriting:** GrammaTech GTIRB / `ddisasm` / `gtirb-pprinter`.
-- **Obfuscation:** VMProtect, Themida, Tigress, obfuscator-LLVM. REN measures
+- **Obfuscation:** VMProtect, Themida, Tigress, obfuscator-LLVM. re-exposure measures
   their effect rather than reimplementing them, and the measurement is why it
   treats them as cost-raisers, not protection.
 
@@ -219,7 +219,7 @@ agent, because the secret was never in the control flow. Reproduce with
 [PolyForm Noncommercial 1.0.0](LICENSE). Free to read, run, and modify for any
 **noncommercial** purpose (evaluation, research, personal use, and by nonprofit
 or government organizations). **Commercial or production use requires a separate
-license** from the author, the intended path for companies that want to use REN
+license** from the author, the intended path for companies that want to use re-exposure
 to protect their own software. Contact the author to arrange one.
 
 ## Documentation

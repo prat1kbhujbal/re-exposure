@@ -46,9 +46,9 @@ Two optional axes measure what the static ones cannot:
   gap is the useful signal, not the pseudocode number alone.
 
 These, plus the hardening tools that reduce the score (metadata denial and
-reference-correct string encryption), are part of the full REN toolkit.
+reference-correct string encryption), are part of the full re-exposure toolkit.
 
 ## License
 
-MIT. The full REN toolkit (the hardening transforms and the deep axes) is
-licensed separately.
+MIT. The full re-exposure toolkit (the hardening transforms and the deep axes)
+is licensed separately.
